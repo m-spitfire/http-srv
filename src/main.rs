@@ -12,13 +12,19 @@ fn main() -> anyhow::Result<()> {
                 let mut reader = BufReader::new(&mut stream);
                 let mut start_line = String::new();
                 reader.read_line(&mut start_line)?;
-                let path = start_line
-                    .split_whitespace()
-                    .nth(1)
-                    .expect("start line have path in it");
-                match path {
-                    "/" => {
+                let path = start_line.split_whitespace().collect::<Vec<&str>>();
+
+                match (path[0], path[1]) {
+                    ("GET", "/") => {
                         stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
+                    }
+                    ("GET", echo_path) if echo_path.starts_with("/echo/") => {
+                        let echo_str = echo_path
+                            .strip_prefix("/echo/")
+                            .expect("should have /echo/ prefix");
+
+                        let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", echo_str.len(), echo_str);
+                        stream.write(&response.into_bytes())?;
                     }
                     _ => {
                         stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n")?;

@@ -1,10 +1,14 @@
 use anyhow::Context;
+use itertools::Itertools;
+use std::env;
+use std::path::PathBuf;
+use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 use http_server_starter_rust::{parse_request, HttpMethod};
 
-async fn handle_stream(mut stream: TcpStream) -> anyhow::Result<()> {
+async fn handle_stream(mut stream: TcpStream, dir: Option<String>) -> anyhow::Result<()> {
     let mut buf = [0; 1024];
     let read_bytes = stream.read(&mut buf).await.context("read request")?;
     let request = String::from_utf8_lossy(&buf[..read_bytes]).to_string();
@@ -38,6 +42,28 @@ async fn handle_stream(mut stream: TcpStream) -> anyhow::Result<()> {
             );
             stream.write(&response.into_bytes()).await?;
         }
+        (HttpMethod::GET, file_name) if file_name.starts_with("/files/") && dir.is_some() => {
+            let file_name = file_name
+                .strip_prefix("/files/")
+                .expect("should have /files/ prefix");
+            let dir = dir.expect("shouldn't go into this branch");
+            let file_path = PathBuf::from_iter([dir.as_str(), file_name].iter());
+            match File::open(file_path).await {
+                Ok(mut file) => {
+                    let mut buf = String::new();
+                    file.read_to_string(&mut buf).await?;
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n{}",
+                        buf.len(),
+                        buf
+                    );
+                    stream.write(&response.into_bytes()).await?;
+                }
+                Err(_) => {
+                    stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n").await?;
+                }
+            }
+        }
         _ => {
             stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n").await?;
         }
@@ -47,12 +73,20 @@ async fn handle_stream(mut stream: TcpStream) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = env::args().collect_vec();
+    let dir = if args.len() > 2 {
+        assert_eq!(args[1].as_str(), "--directory");
+        Some(args[2].clone())
+    } else {
+        None
+    };
     let listener = TcpListener::bind("127.0.0.1:4221")
         .await
         .expect("sockaddr is correct");
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let dir_loop = dir.clone();
         tokio::spawn(async move {
             println!(
                 "accepted a connection from {}",
@@ -60,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
                     .peer_addr()
                     .context("couldn't get peer address of stream")?
             );
-            handle_stream(stream).await
+            handle_stream(stream, dir_loop).await
         });
     }
 }

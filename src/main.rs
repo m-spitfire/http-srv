@@ -12,7 +12,7 @@ async fn handle_stream(mut stream: TcpStream, dir: Option<String>) -> anyhow::Re
     let mut buf = [0; 1024];
     let read_bytes = stream.read(&mut buf).await.context("read request")?;
     let request = String::from_utf8_lossy(&buf[..read_bytes]).to_string();
-    let (_, (start_line, headers)) =
+    let (_, (start_line, headers, body)) =
         parse_request(request.as_str()).expect("request to be parsable");
 
     match (start_line.method, start_line.target.as_str()) {
@@ -63,6 +63,16 @@ async fn handle_stream(mut stream: TcpStream, dir: Option<String>) -> anyhow::Re
                     stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n").await?;
                 }
             }
+        }
+        (HttpMethod::POST, file_name) if file_name.starts_with("/files/") && dir.is_some() => {
+            let file_name = file_name
+                .strip_prefix("/files/")
+                .expect("should have /files/ prefix");
+            let dir = dir.expect("shouldn't go into this branch");
+            let file_path = PathBuf::from_iter([dir.as_str(), file_name].iter());
+            let mut file = File::create(file_path).await?;
+            file.write_all(body.as_bytes()).await?;
+            stream.write(b"HTTP/1.1 201 Created\r\n\r\n").await?;
         }
         _ => {
             stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n").await?;

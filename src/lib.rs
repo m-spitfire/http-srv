@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_until, take_while1},
-    character::complete::{crlf},
+    character::complete::crlf,
     combinator::{map, value},
     multi::many0,
     sequence::{preceded, separated_pair, terminated, Tuple},
@@ -69,8 +69,8 @@ fn parse_headers(input: &str) -> IResult<&str, HashMap<String, String>> {
 
 pub fn parse_request<'a>(
     request: &'a str,
-) -> IResult<&'a str, (StartLine, HashMap<String, String>)> {
+) -> IResult<&'a str, (StartLine, HashMap<String, String>, String)> {
     let (rest, start_line) = parse_start_line(&request)?;
     let (rest, headers) = parse_headers(&rest)?;
-    Ok((rest, (start_line, headers)))
+    Ok(("", (start_line, headers, rest.to_string())))
 }

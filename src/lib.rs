@@ -1,16 +1,12 @@
-use std::{
-    collections::HashMap,
-    io::{BufReader, Lines},
-    net::TcpStream,
-};
+use std::collections::HashMap;
 
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_until, take_while1},
-    character::complete::{char as nom_char, crlf, space0},
-    combinator::{map, rest, value},
-    multi::{many0, many1},
-    sequence::{pair, preceded, separated_pair, terminated, Tuple},
+    character::complete::{crlf},
+    combinator::{map, value},
+    multi::many0,
+    sequence::{preceded, separated_pair, terminated, Tuple},
     IResult,
 };
 

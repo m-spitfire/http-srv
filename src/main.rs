@@ -1,7 +1,8 @@
-use std::io::{prelude::*, BufReader};
+use anyhow::Context;
+use std::io::prelude::*;
 use std::net::TcpListener;
 
-use anyhow::Context;
+use http_server_starter_rust::{parse_request, HttpMethod};
 
 fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:4221").expect("sockaddr is correct");
@@ -9,16 +10,28 @@ fn main() -> anyhow::Result<()> {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                let mut reader = BufReader::new(&mut stream);
-                let mut start_line = String::new();
-                reader.read_line(&mut start_line)?;
-                let path = start_line.split_whitespace().collect::<Vec<&str>>();
+                println!(
+                    "accepted a connection from {}",
+                    stream
+                        .peer_addr()
+                        .context("couldn't get peer address of stream")?
+                );
 
-                match (path[0], path[1]) {
-                    ("GET", "/") => {
-                        stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
+                let mut buf = [0; 1024];
+                let read_bytes = stream.read(&mut buf).context("read request")?;
+                let request = String::from_utf8_lossy(&buf[..read_bytes]).to_string();
+                let (_, (start_line, headers)) =
+                    parse_request(request.as_str()).expect("request to be parsable");
+
+                match (start_line.method, start_line.target.as_str()) {
+                    (HttpMethod::GET, "/user-agent") => {
+                        let user_agent = headers
+                            .get("User-Agent")
+                            .expect("user agent head to be present");
+                        let response = format!("HTTP/1.1 200 OK\r\n\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", user_agent.len(), user_agent);
+                        stream.write(&response.into_bytes())?;
                     }
-                    ("GET", echo_path) if echo_path.starts_with("/echo/") => {
+                    (HttpMethod::GET, echo_path) if echo_path.starts_with("/echo/") => {
                         let echo_str = echo_path
                             .strip_prefix("/echo/")
                             .expect("should have /echo/ prefix");

@@ -24,6 +24,9 @@ fn main() -> anyhow::Result<()> {
                     parse_request(request.as_str()).expect("request to be parsable");
 
                 match (start_line.method, start_line.target.as_str()) {
+                    (HttpMethod::GET, "/") => {
+                         stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
+                     }
                     (HttpMethod::GET, "/user-agent") => {
                         let user_agent = headers
                             .get("User-Agent")

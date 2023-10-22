@@ -25,13 +25,13 @@ fn main() -> anyhow::Result<()> {
 
                 match (start_line.method, start_line.target.as_str()) {
                     (HttpMethod::GET, "/") => {
-                         stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
-                     }
+                        stream.write(b"HTTP/1.1 200 OK\r\n\r\n")?;
+                    }
                     (HttpMethod::GET, "/user-agent") => {
                         let user_agent = headers
                             .get("User-Agent")
                             .expect("user agent head to be present");
-                        let response = format!("HTTP/1.1 200 OK\r\n\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", user_agent.len(), user_agent);
+                        let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {}\r\n\r\n{}", user_agent.len(), user_agent);
                         stream.write(&response.into_bytes())?;
                     }
                     (HttpMethod::GET, echo_path) if echo_path.starts_with("/echo/") => {

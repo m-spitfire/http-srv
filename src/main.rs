@@ -5,13 +5,6 @@ use tokio::net::{TcpListener, TcpStream};
 use http_server_starter_rust::{parse_request, HttpMethod};
 
 async fn handle_stream(mut stream: TcpStream) -> anyhow::Result<()> {
-    println!(
-        "accepted a connection from {}",
-        stream
-            .peer_addr()
-            .context("couldn't get peer address of stream")?
-    );
-
     let mut buf = [0; 1024];
     let read_bytes = stream.read(&mut buf).await.context("read request")?;
     let request = String::from_utf8_lossy(&buf[..read_bytes]).to_string();
@@ -60,6 +53,14 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         let (stream, _) = listener.accept().await?;
-        handle_stream(stream).await?;
+        tokio::spawn(async move {
+            println!(
+                "accepted a connection from {}",
+                stream
+                    .peer_addr()
+                    .context("couldn't get peer address of stream")?
+            );
+            handle_stream(stream).await
+        });
     }
 }
